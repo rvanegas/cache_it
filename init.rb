@@ -1,0 +1,2 @@
+require 'model_cache'
+

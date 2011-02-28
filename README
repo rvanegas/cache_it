@@ -1,0 +1,20 @@
+ModelCache
+==========
+
+Cache for ActiveRecord objects.  Cache-money was not yet ported to Rails 3 so I rolled my own.
+
+
+Example
+=======
+
+class User < ActiveRecord::Base
+  model_cache :email
+  model_cache :first, :last
+end
+
+user = User.find_from_model_cache :first => "Joe", :last => "Schmoe"
+user = User.find_from_model_cache :email => "joe@example.com"
+user.age = 40
+user.write_cache
+
+Copyright (c) 2011 Rodrigo Vanegas, released under the MIT license
