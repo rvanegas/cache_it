@@ -22,7 +22,6 @@ module ActiveRecord
       end
     end
     module ClassMethods
-      mattr_accessor :mcache_indeces
       def mcache_key(attrs)
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
@@ -44,7 +43,7 @@ module ActiveRecord
         if val = Rails.cache.read(key)
           obj = new(val["attributes"])
           obj.id = val["id"]
-          obj.instance_variable_set("@new_record", false)
+          obj.instance_variable_set("@new_record", false) if obj.id
         else
           obj = nil
         end
@@ -68,6 +67,8 @@ module ActiveRecord
   class Base
     def self.model_cache(*index)
       include ModelCache
+      mattr_accessor :mcache_indeces
+      self.mcache_indeces ||= [["id"]]
       mcache_add_index(*index)
     end
   end
