@@ -22,6 +22,12 @@ module ActiveRecord
       end
     end
     module ClassMethods
+      def self.extended(base)
+        attr_accessor :mcache_indexes
+        base.mcache_indexes ||= [["id"]]
+        base.after_save :mcache_write
+        base.after_destroy :mcache_delete
+      end
       def mcache_key(attrs)
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
@@ -50,16 +56,12 @@ module ActiveRecord
         return obj
       end
       def mcache_add_index(*index)
-        self.mcache_indexes ||= [["id"]]
-        if index.present?
-          index = index.map{|n|n.to_s}.sort
-          unless index.all?{|n|self.column_names.include? n}
-            raise ArgumentError, "index must be array of column names" 
-          end
-          self.mcache_indexes.push index unless self.mcache_indexes.include? index
+        return nil unless index.present?
+        index = index.map{|n|n.to_s}.sort
+        unless index.all?{|n|self.column_names.include? n}
+          raise ArgumentError, "index must be list of column names" 
         end
-        self.after_save :mcache_write
-        self.after_destroy :mcache_delete
+        self.mcache_indexes.push index unless self.mcache_indexes.include? index
         return nil
       end
     end
@@ -67,8 +69,6 @@ module ActiveRecord
   class Base
     def self.model_cache(*index)
       include ModelCache
-      mattr_accessor :mcache_indexes
-      self.mcache_indexes ||= [["id"]]
       mcache_add_index(*index)
     end
   end
