@@ -23,6 +23,7 @@ module ActiveRecord
     end
     module ClassMethods
       def self.extended(base)
+        attr_accessor :mcache_config
         attr_accessor :mcache_indexes
         base.mcache_indexes ||= [["id"]]
         base.after_save :mcache_write
@@ -64,12 +65,28 @@ module ActiveRecord
         self.mcache_indexes.push index unless self.mcache_indexes.include? index
         return nil
       end
+
+      private
+      def mcache_init(config)
+        puts "mcache_init"
+        self.mcache_config = config
+      end
     end
+
+    class Config
+      def index
+        puts "index"
+      end
+    end
+
   end
   class Base
-    def self.model_cache(*index)
+    def self.model_cache(*args)
       include ModelCache
-      mcache_add_index(*index)
+      config = ModelCache::Config.new
+      yield config if block_given?
+      mcache_init config
+      # mcache_add_index(*index)
     end
   end
 end
