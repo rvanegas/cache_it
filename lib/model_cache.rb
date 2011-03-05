@@ -6,17 +6,16 @@ module ActiveRecord
 
     def mcache_keys
       self.class.mcache_config.indexes.map do |index|
-        pairs = index.map do |name|
-          { name => self[name] }
-        end
+        pairs = index.map {|name| {name => self[name]}}
         self.class.mcache_key pairs.inject :merge
       end
     end
 
     def mcache_write
-      mcache_keys.each do |key|
-        Rails.cache.write(key, attributes)
-      end
+      keys = mcache_keys
+      primary = keys.shift
+      keys.each {|key| Rails.cache.write(key, {:primary => primary})}
+      Rails.cache.write(primary, {:attributes => attributes})
     end
 
     def mcache_delete
@@ -37,8 +36,8 @@ module ActiveRecord
         index = attrs.keys.sort
         raise ArgumentError, "index not available" unless mcache_config.indexes.include? index
         key = index.map{|name| [name, attrs[name]]}
-        key << self.name
-        key << "ModelCache.v1"
+        key.push self.name
+        key.push "ModelCache.v1"
         return key.to_json
       end
 
@@ -53,8 +52,10 @@ module ActiveRecord
       def mcache_read(attrs)
         key = mcache_key(attrs)
         if val = Rails.cache.read(key)
+          val = Rails.cache.read(val[:primary]) if val[:primary]
+          attributes = val[:attributes]
           obj = new
-          val.keys.each { |key| obj[key] = val[key] }
+          attributes.keys.each { |key| obj[key] = attributes[key] }
           obj.instance_variable_set("@new_record", false) if obj.id
         else
           obj = nil
@@ -69,6 +70,8 @@ module ActiveRecord
     end
 
     class Config
+      attr_reader :indexes
+
       def initialize(model)
         @model = model
       end
@@ -79,13 +82,9 @@ module ActiveRecord
         unless index.all?{|n| @model.column_names.include? n}
           raise ArgumentError, "index must be list of column names" 
         end
-        @indexes ||= [["id"]]
+        @indexes ||= [[@model.primary_key]]
         @indexes.push index unless @indexes.include? index
         return nil
-      end
-
-      def indexes
-        @indexes
       end
 
       def counters(*counters)
