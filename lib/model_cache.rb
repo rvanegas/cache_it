@@ -15,7 +15,7 @@ module ActiveRecord
 
     def mcache_write
       mcache_keys.each do |key|
-        Rails.cache.write(key, {"id" => id, "attributes" => attributes})
+        Rails.cache.write(key, attributes)
       end
     end
 
@@ -53,8 +53,8 @@ module ActiveRecord
       def mcache_read(attrs)
         key = mcache_key(attrs)
         if val = Rails.cache.read(key)
-          obj = new(val["attributes"])
-          obj.id = val["id"]
+          obj = new
+          val.keys.each { |key| obj[key] = val[key] }
           obj.instance_variable_set("@new_record", false) if obj.id
         else
           obj = nil
@@ -104,10 +104,12 @@ module ActiveRecord
   end
 
   class Base
-    def self.model_cache(*args)
+    def self.model_cache(options = {})
       include ModelCache
       config = ModelCache::Config.new(self)
       yield config if block_given?
+      config.index *options[:index] if options[:index]
+      config.counters *options[:counters] if options[:counters]
       mcache_init config
     end
   end
