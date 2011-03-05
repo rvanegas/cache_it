@@ -18,6 +18,18 @@ module ActiveRecord
       Rails.cache.write(primary, {:attributes => attributes})
     end
 
+    def mcache_increment(counter, amount = 1)
+      counter = counter.to_s
+      unless self.class.mcache_config.counters.include? counter
+        raise ArgumentError, "#{counter} is not a counter"
+      end
+      primary_key = self.class.primary_key
+      key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
+      Rails.cache.write(key, self[counter], :raw => true) unless Rails.cache.read(key)
+      self[counter] = Rails.cache.increment(key, amount, :raw => true)
+      mcache_write
+    end
+
     def mcache_delete
       mcache_keys.each do |key|
         Rails.cache.delete(key)
@@ -31,11 +43,12 @@ module ActiveRecord
         base.after_destroy :mcache_delete
       end
 
-      def mcache_key(attrs)
+      def mcache_key(attrs, options = {})
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
         raise ArgumentError, "index not available" unless mcache_config.indexes.include? index
         key = index.map{|name| [name, attrs[name]]}
+        key.push options[:counter] if options[:counter]
         key.push self.name
         key.push "ModelCache.v1"
         return key.to_json
@@ -51,14 +64,13 @@ module ActiveRecord
 
       def mcache_read(attrs)
         key = mcache_key(attrs)
+        obj = nil
         if val = Rails.cache.read(key)
           val = Rails.cache.read(val[:primary]) if val[:primary]
           attributes = val[:attributes]
           obj = new
-          attributes.keys.each { |key| obj[key] = attributes[key] }
+          attributes.keys.each {|key| obj[key] = attributes[key]}
           obj.instance_variable_set("@new_record", false) if obj.id
-        else
-          obj = nil
         end
         return obj
       end
