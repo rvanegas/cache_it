@@ -50,6 +50,7 @@ module ActiveRecord
         key = index.map{|name| [name, attrs[name]]}
         key.push options[:counter] if options[:counter]
         key.push self.name
+        key.push Rails.env
         key.push "ModelCache.v1"
         return key.to_json
       end
