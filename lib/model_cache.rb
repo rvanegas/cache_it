@@ -6,7 +6,7 @@ module ActiveRecord
 
     def mcache_keys
       self.class.mcache_config.indexes.map do |index|
-        self.class.mcache_key attribrutes.select {|attr| index.include? attr}
+        self.class.mcache_key attributes.select {|attr| index.include? attr}
       end
     end
 
@@ -85,6 +85,8 @@ module ActiveRecord
 
       def initialize(model)
         @model = model
+        @indexes ||= [[@model.primary_key]]
+        @counters ||= []
       end
 
       def index(*index)
@@ -93,7 +95,6 @@ module ActiveRecord
         unless index.all?{|n| @model.column_names.include? n}
           raise ArgumentError, "index must be list of column names" 
         end
-        @indexes ||= [[@model.primary_key]]
         @indexes.push index unless @indexes.include? index
         validate
         return nil
@@ -105,7 +106,6 @@ module ActiveRecord
         unless counters.all?{|n| @model.column_names.include? n}
           raise ArgumentError, "counters must be column names for integer attributes" 
         end
-        @counters ||= []
         counters.each do |name| 
           @counters.push name unless @counters.include? name
         end
