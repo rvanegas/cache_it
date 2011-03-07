@@ -6,8 +6,7 @@ module ActiveRecord
 
     def mcache_keys
       self.class.mcache_config.indexes.map do |index|
-        pairs = index.map {|name| {name => self[name]}}
-        self.class.mcache_key pairs.inject :merge
+        self.class.mcache_key attribrutes.select {|attr| index.include? attr}
       end
     end
 
@@ -27,7 +26,6 @@ module ActiveRecord
       key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
       Rails.cache.write(key, self[counter], :raw => true) unless Rails.cache.read(key)
       self[counter] = Rails.cache.increment(key, amount, :raw => true)
-      mcache_write
     end
 
     def mcache_delete
@@ -97,6 +95,7 @@ module ActiveRecord
         end
         @indexes ||= [[@model.primary_key]]
         @indexes.push index unless @indexes.include? index
+        validate
         return nil
       end
 
@@ -110,7 +109,14 @@ module ActiveRecord
         counters.each do |name| 
           @counters.push name unless @counters.include? name
         end
+        validate
         return nil
+      end
+
+      def validate
+        if @indexes.flatten.any? {|name| @counters.include? name}
+          raise "cannot use column for both index and counter" 
+        end
       end
     end
   end
