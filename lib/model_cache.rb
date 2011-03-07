@@ -23,9 +23,10 @@ module ActiveRecord
         raise ArgumentError, "#{counter} is not a counter"
       end
       primary_key = self.class.primary_key
-      key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
-      Rails.cache.write(key, self[counter], :raw => true) unless Rails.cache.read(key)
-      self[counter] = Rails.cache.increment(key, amount, :raw => true)
+      if key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
+        Rails.cache.write(key, self[counter], :raw => true) unless Rails.cache.read(key)
+        self[counter] = Rails.cache.increment(key, amount, :raw => true)
+      end
     end
 
     def mcache_delete
