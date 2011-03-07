@@ -13,8 +13,9 @@ module ActiveRecord
     def mcache_write
       keys = mcache_keys
       primary = keys.shift
-      keys.each {|key| Rails.cache.write(key, {:primary => primary})}
-      Rails.cache.write(primary, {:attributes => attributes})
+      expires_in = self.class.mcache_config.expires_in
+      keys.each {|key| Rails.cache.write(key, {:primary => primary}, :expires_in => expires_in)}
+      Rails.cache.write(primary, {:attributes => attributes}, :expires_in => expires_in)
     end
 
     def mcache_increment(counter, amount = 1)
@@ -111,6 +112,12 @@ module ActiveRecord
           @counters.push name unless @counters.include? name
         end
         validate
+        return nil
+      end
+
+      def expires_in(expires_in = nil)
+        return @expires_in unless expires_in
+        @expires_in = expires_in
         return nil
       end
 
