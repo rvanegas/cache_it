@@ -70,7 +70,13 @@ module ActiveRecord
           val = Rails.cache.read(val[:primary]) if val[:primary]
           attributes = val[:attributes]
           obj = new
-          attributes.keys.each {|key| obj[key] = attributes[key]}
+          attributes.keys.each {|name| obj[name] = attributes[name]}
+          mcache_config.counters.each do |counter|
+            counter_key = mcache_key({primary_key => obj[primary_key]}, :counter => counter)
+            if val = Rails.cache.read(counter_key, :raw => true)
+              obj[counter] = val
+            end
+          end
           obj.instance_variable_set("@new_record", false) if obj.id
         end
         return obj
