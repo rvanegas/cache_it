@@ -55,15 +55,15 @@ module ActiveRecord
         return key.join(":")
       end
 
-      def mcache_find(attrs)
-        unless obj = mcache_read(attrs)
+      def mcache_find(attrs, options = {})
+        unless obj = mcache_read(attrs, options)
           obj = where(attrs).first
           obj.mcache_write if obj
         end
         return obj
       end
 
-      def mcache_read(attrs)
+      def mcache_read(attrs, options = {})
         key = mcache_key(attrs)
         obj = nil
         if val = Rails.cache.read(key)
@@ -71,10 +71,12 @@ module ActiveRecord
           attributes = val[:attributes]
           obj = new
           attributes.keys.each {|name| obj[name] = attributes[name]}
-          mcache_config.counters.each do |counter|
-            counter_key = mcache_key({primary_key => obj[primary_key]}, :counter => counter)
-            if val = Rails.cache.read(counter_key, :raw => true)
-              obj[counter] = val
+          unless options[:skip_counters]
+            mcache_config.counters.each do |counter|
+              counter_key = mcache_key({primary_key => obj[primary_key]}, :counter => counter)
+              if val = Rails.cache.read(counter_key, :raw => true)
+                obj[counter] = val
+              end
             end
           end
           obj.instance_variable_set("@new_record", false) if obj.id
