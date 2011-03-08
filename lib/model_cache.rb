@@ -11,8 +11,7 @@ module ActiveRecord
     end
 
     def mcache_write
-      keys = mcache_keys
-      primary = keys.shift
+      primary, *keys = mcache_keys
       expires_in = self.class.mcache_config.expires_in
       keys.each {|key| Rails.cache.write(key, {:primary => primary}, :expires_in => expires_in)}
       Rails.cache.write(primary, {:attributes => attributes}, :expires_in => expires_in)
