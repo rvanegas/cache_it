@@ -46,12 +46,13 @@ module ActiveRecord
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
         raise ArgumentError, "index not available" unless mcache_config.indexes.include? index
-        key = index.map{|name| [name, attrs[name]]}
+        if options[:counter]
+          raise ArgumentError, "not a counter" unless mcache_config.counters.include? options[:counter]
+        end
+        key = ["ModelCache.v1", Rails.env, self.name]
         key.push options[:counter] if options[:counter]
-        key.push self.name
-        key.push Rails.env
-        key.push "ModelCache.v1"
-        return key.to_json
+        key.push index.map{|name| [name, attrs[name]]}.to_json
+        return key.join(":")
       end
 
       def mcache_find(attrs)
@@ -92,8 +93,8 @@ module ActiveRecord
 
       def index(*index)
         return nil unless index.present?
-        index = index.map{|n|n.to_s}.sort
-        unless index.all?{|n| @model.column_names.include? n}
+        index = index.map {|n|n.to_s}.sort
+        unless index.all? {|n| @model.column_names.include? n}
           raise ArgumentError, "index must be list of column names" 
         end
         @indexes.push index unless @indexes.include? index
@@ -103,8 +104,8 @@ module ActiveRecord
 
       def counters(*counters)
         return @counters unless counters.present?
-        counters = counters.map{|n|n.to_s}
-        unless counters.all?{|n| @model.column_names.include? n}
+        counters = counters.map {|n|n.to_s}
+        unless counters.all? {|n| @model.columns_hash[n].try(:type) == :integer}
           raise ArgumentError, "counters must be column names for integer attributes" 
         end
         counters.each do |name| 
@@ -114,12 +115,22 @@ module ActiveRecord
         return nil
       end
 
-      def expires_in(expires_in = nil)
-        return @expires_in unless expires_in
-        @expires_in = expires_in
-        return nil
+      def expires_in(expires_in = nil, &block)
+        unless expires_in or block_given?
+          case @expires_in
+          when Proc
+            return @expires_in.call
+          else
+            return @expires_in
+          end
+        else
+          raise ArgumentError, "use block or args" if expires_in and block_given?
+          @expires_in = expires_in || block
+          return nil
+        end
       end
 
+      private
       def validate
         if @indexes.flatten.any? {|name| @counters.include? name}
           raise "cannot use column for both index and counter" 
@@ -129,12 +140,12 @@ module ActiveRecord
   end
 
   class Base
-    def self.model_cache(options = {})
+    def self.model_cache(*index)
       include ModelCache
       config = ModelCache::Config.new(self)
+      raise ArgumentError, "use block or args" if index.present? and block_given?
+      config.index *index if index.present?
       yield config if block_given?
-      config.index *options[:index] if options[:index]
-      config.counters *options[:counters] if options[:counters]
       mcache_init config
     end
   end
