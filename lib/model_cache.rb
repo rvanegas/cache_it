@@ -11,10 +11,18 @@ module ActiveRecord
     end
 
     def mcache_write
-      primary, *keys = mcache_keys
       expires_in = self.class.mcache_config.expires_in
-      keys.each {|key| Rails.cache.write(key, {:primary => primary}, :expires_in => expires_in)}
-      Rails.cache.write(primary, {:attributes => attributes}, :expires_in => expires_in)
+      mcache_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
+      mcache_init_counters
+    end
+
+    def mcache_init_counters
+      puts "mcache_init_counters"
+      primary_key = self.class.primary_key
+      self.class.mcache_config.counters.map do |counter|
+        counter_key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
+        self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
+      end
     end
 
     def mcache_increment(counter, amount = 1)
@@ -24,7 +32,6 @@ module ActiveRecord
       end
       primary_key = self.class.primary_key
       if key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
-        Rails.cache.write(key, self[counter], :raw => true) unless Rails.cache.read(key)
         self[counter] = Rails.cache.increment(key, amount, :raw => true)
       end
     end
@@ -67,18 +74,10 @@ module ActiveRecord
         key = mcache_key(attrs)
         obj = nil
         if val = Rails.cache.read(key)
-          val = Rails.cache.read(val[:primary]) if val[:primary]
           attributes = val[:attributes]
           obj = new
           attributes.keys.each {|name| obj[name] = attributes[name]}
-          unless options[:skip_counters]
-            mcache_config.counters.each do |counter|
-              counter_key = mcache_key({primary_key => obj[primary_key]}, :counter => counter)
-              if val = Rails.cache.read(counter_key, :raw => true)
-                obj[counter] = val
-              end
-            end
-          end
+          obj.mcache_init_counters unless options[:skip_counters]
           obj.instance_variable_set("@new_record", false) if obj.id
         end
         return obj
