@@ -17,7 +17,6 @@ module ActiveRecord
     end
 
     def mcache_init_counters
-      puts "mcache_init_counters"
       primary_key = self.class.primary_key
       self.class.mcache_config.counters.map do |counter|
         counter_key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
