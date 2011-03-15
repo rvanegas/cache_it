@@ -55,7 +55,7 @@ module ActiveRecord
         if options[:counter]
           raise ArgumentError, "not a counter" unless mcache_config.counters.include? options[:counter]
         end
-        key = ["ModelCache.v1", Rails.env, self.name]
+        key = ["ModelCache.v1", self.name]
         key.push options[:counter] if options[:counter]
         key.push index.map{|name| [name, attrs[name]]}.to_json
         return key.join(":")
@@ -123,12 +123,7 @@ module ActiveRecord
 
       def expires_in(expires_in = nil, &block)
         unless expires_in or block_given?
-          case @expires_in
-          when Proc
-            return @expires_in.call
-          else
-            return @expires_in
-          end
+          @expires_in.respond_to?(:call) ? @expires_in.call : @expires_in
         else
           raise ArgumentError, "use block or args" if expires_in and block_given?
           @expires_in = expires_in || block
