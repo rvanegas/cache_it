@@ -1,23 +1,18 @@
-require 'rake'
-require 'rake/testtask'
-require 'rake/rdoctask'
+require 'rspec/core/rake_task'
 
-desc 'Default: run unit tests.'
-task :default => :test
+desc 'Default: run specs.'
+task :default => :spec
 
-desc 'Test the model_cache plugin.'
-Rake::TestTask.new(:test) do |t|
-  t.libs << 'lib'
-  t.libs << 'test'
-  t.pattern = 'test/**/*_test.rb'
-  t.verbose = true
+desc "Run specs"
+RSpec::Core::RakeTask.new do |t|
+  t.pattern = "./spec/**/*_spec.rb" # don't need this, it's default.
+  # Put spec opts in a file named .rspec in root
 end
 
-desc 'Generate documentation for the model_cache plugin.'
-Rake::RDocTask.new(:rdoc) do |rdoc|
-  rdoc.rdoc_dir = 'rdoc'
-  rdoc.title    = 'ModelCache'
-  rdoc.options << '--line-numbers' << '--inline-source'
-  rdoc.rdoc_files.include('README')
-  rdoc.rdoc_files.include('lib/**/*.rb')
+desc "Generate code coverage"
+RSpec::Core::RakeTask.new(:coverage) do |t|
+  t.pattern = "./spec/**/*_spec.rb" # don't need this, it's default.
+  t.rcov = true
+  t.rcov_opts = ['--exclude', 'spec']
 end
+
