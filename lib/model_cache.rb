@@ -4,15 +4,16 @@ module ActiveRecord
       base.extend(ClassMethods)
     end
 
-    def mcache_keys
+    def mcache_keys(attrs = attributes)
       self.class.mcache_config.indexes.map do |index|
-        self.class.mcache_key attributes.select {|attr| index.include? attr}
+        self.class.mcache_key attrs.select {|attr| index.include? attr}
       end
     end
 
     def mcache_write
       expires_in = self.class.mcache_config.expires_in
       mcache_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
+      mcache_stale_keys.each {|key| Rails.cache.delete(key)}
       mcache_init_counters
     end
 
@@ -39,6 +40,19 @@ module ActiveRecord
       mcache_keys.each do |key|
         Rails.cache.delete(key)
       end
+    end
+
+    private
+    def attributes_before_changes
+      result = Hash.new
+      attributes.each do |k,v| 
+        result[k] = changes.include?(k) ? changes[k].first : v
+      end
+      return result
+    end
+
+    def mcache_stale_keys
+      mcache_keys(attributes_before_changes) - mcache_keys(attributes)
     end
 
     module ClassMethods
