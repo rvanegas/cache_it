@@ -74,7 +74,6 @@ describe MockCache do
   end
 end
 
-
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => ":memory:")
 
 silence_stream(STDOUT) do
@@ -103,9 +102,7 @@ class User < ActiveRecord::Base
 end
 
 describe ActiveRecord::ModelCache do
-
   context "basics with User" do
-
     before do
       User.delete_all
       Rails.cache.clear
@@ -162,7 +159,7 @@ describe ActiveRecord::ModelCache do
     end
 
     it "doesn't accept unknown index" do
-      expect { User.mcache_read(:points => 10) }.to raise_error
+      expect { User.mcache_read(:points => 10) }.to raise_error(/index not available/)
     end
   end
 
@@ -178,7 +175,7 @@ describe ActiveRecord::ModelCache do
           c.index :name, :points
           c.counters :points
         end
-      end.to raise_error
+      end.to raise_error(/cannot use column/)
     end
 
     it "can use arg" do
@@ -189,36 +186,27 @@ describe ActiveRecord::ModelCache do
 
     it "can't use arg and block" do
       expect do
-        @users_class.model_cache :code do |c|
-          c.index :name
-        end
-      end.to raise_error
+        @users_class.model_cache(:code) {|c| c.index :name}
+      end.to raise_error(/block or args/)
     end
 
     it "accepts constant or proc for expires" do
       expect do
-        @users_class.model_cache do |c|
-          c.expires_in 3
-        end
+        @users_class.model_cache {|c| c.expires_in 3}
       end.to_not raise_error
       expect do
-        @users_class.model_cache do |c|
-          c.expires_in { 3 }
-        end
+        @users_class.model_cache {|c| c.expires_in { 3 }}
       end.to_not raise_error
     end
 
     it "counter must be integer column" do
       expect do
-        @users_class.model_cache do |c|
-          c.counters :name
-        end
-      end.to raise_error
+        @users_class.model_cache {|c| c.counters :name}
+      end.to raise_error(/must be column names for integer/)
       expect do
-        @users_class.model_cache do |c|
-          c.counters :not_a_column
-        end
-      end.to raise_error
+        @users_class.model_cache {|c| c.counters :not_a_column}
+      end.to raise_error(/must be column names for integer/)
     end
   end
 end
+
