@@ -118,22 +118,22 @@ describe ActiveRecord::ModelCache do
     @u.mcache_write
     User.mcache_read(:name => "jane").should== @u
     User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "joe"
-    @u.save
+    @u.save!
     User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "jane"
   end
 
   it "increments" do
     @u.mcache_increment(:points)
     @u.points.should== 1
-    User.find_by_sql("select * from users where name = 'joe'").first.points.should == 0
-    @u.save
-    User.find_by_sql("select * from users where name = 'joe'").first.points.should == 1
+    User.find_by_sql("select * from users where name = 'joe'").first.points.should== 0
+    @u.save!
+    User.find_by_sql("select * from users where name = 'joe'").first.points.should== 1
   end
 
   it "deletes stale keys" do
     User.mcache_read(:code => "x").should== @u
     @u.code = "y"
-    @u.save
+    @u.save!
     User.mcache_read(:code => "x").should== nil
   end
 
@@ -146,5 +146,15 @@ describe ActiveRecord::ModelCache do
     @u3.points.should== 0
     @u4 = User.mcache_read(:name => "joe")
     @u4.points.should== 2
+  end
+
+  it "nil for read of unknown keys" do
+    User.mcache_read(:name => "dave").should== nil
+  end
+
+  it "flags set right" do
+    @u2 = User.mcache_read(:name => "joe")
+    @u2.new_record?.should== false
+    @u2.persisted?.should== true
   end
 end
