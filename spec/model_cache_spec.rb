@@ -160,5 +160,65 @@ describe ActiveRecord::ModelCache do
       @u2.new_record?.should== false
       @u2.persisted?.should== true
     end
+
+    it "doesn't accept unknown index" do
+      expect { User.mcache_read(:points => 10) }.to raise_error
+    end
+  end
+
+  context "config" do
+    before do
+      @users_class = Class.new ActiveRecord::Base
+      @users_class.set_table_name "users"
+    end
+    
+    it "can't use same column for both index and counter" do
+      expect do
+        @users_class.model_cache do |c|
+          c.index :name, :points
+          c.counters :points
+        end
+      end.to raise_error
+    end
+
+    it "can use arg" do
+      expect do
+        @users_class.model_cache :code
+      end.to_not raise_error
+    end
+
+    it "can't use arg and block" do
+      expect do
+        @users_class.model_cache :code do |c|
+          c.index :name
+        end
+      end.to raise_error
+    end
+
+    it "accepts constant or proc for expires" do
+      expect do
+        @users_class.model_cache do |c|
+          c.expires_in 3
+        end
+      end.to_not raise_error
+      expect do
+        @users_class.model_cache do |c|
+          c.expires_in { 3 }
+        end
+      end.to_not raise_error
+    end
+
+    it "counter must be integer column" do
+      expect do
+        @users_class.model_cache do |c|
+          c.counters :name
+        end
+      end.to raise_error
+      expect do
+        @users_class.model_cache do |c|
+          c.counters :not_a_column
+        end
+      end.to raise_error
+    end
   end
 end
