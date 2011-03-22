@@ -1,11 +1,9 @@
-
 require 'ruby-debug'
 Debugger.start
 
 require 'sqlite3'
 require 'active_record'
 require File.expand_path(File.dirname(__FILE__) + '/../lib/cache_it.rb')
-
 
 class MockCache
   def initialize
@@ -102,7 +100,7 @@ class User < ActiveRecord::Base
 end
 
 describe ActiveRecord::CacheIt do
-  context "basics with User" do
+  context "User" do
     before do
       User.delete_all
       Rails.cache.clear
@@ -131,9 +129,14 @@ describe ActiveRecord::CacheIt do
     end
 
     it "deletes stale keys" do
-      User.cache_it.read(:code => "x").should== @u
       @u.code = "y"
       @u.save!
+      User.cache_it.read(:code => "x").should== nil
+    end
+
+    it "deletes stale keys on destroy" do
+      @u.code = "y"
+      @u.destroy
       User.cache_it.read(:code => "x").should== nil
     end
 
@@ -190,10 +193,13 @@ describe ActiveRecord::CacheIt do
       end.to raise_error(/block or args/)
     end
 
-    it "accepts constant or proc for expires" do
+    it "accepts constant for expires" do
       expect do
         @users_class.cache_it {|c| c.expires_in 3}
       end.to_not raise_error
+    end
+
+    it "accepts proc for expires" do      
       expect do
         @users_class.cache_it {|c| c.expires_in { 3 }}
       end.to_not raise_error
@@ -203,10 +209,18 @@ describe ActiveRecord::CacheIt do
       expect do
         @users_class.cache_it {|c| c.counters :name}
       end.to raise_error(/must be column names for integer/)
+    end
+    
+    it "counter must be existing column" do
       expect do
         @users_class.cache_it {|c| c.counters :not_a_column}
       end.to raise_error(/must be column names for integer/)
     end
+
+    it "each class gets its own config" do
+      @users_class2 = Class.new ActiveRecord::Base
+      @users_class2.set_table_name "users"
+      @users_class2.cache_it.config.should_not== @users_class.cache_it.config
+    end
   end
 end
-

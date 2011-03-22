@@ -7,7 +7,8 @@ module ActiveRecord
 
       def write
         expires_in = @base.class.cache_it.config.expires_in
-        keys.each {|key| Rails.cache.write(key, {:attributes => @base.attributes}, :expires_in => expires_in)}
+        val = {:attributes => @base.attributes}
+        keys.each {|key| Rails.cache.write(key, val, :expires_in => expires_in)}
         stale_keys.each {|key| Rails.cache.delete(key)}
         init_counters
       end
@@ -24,9 +25,7 @@ module ActiveRecord
       end
 
       def delete
-        keys.each do |key|
-          Rails.cache.delete(key)
-        end
+        keys(attributes_before_changes).each {|key| Rails.cache.delete(key)}
       end
 
       def init_counters
@@ -92,9 +91,9 @@ module ActiveRecord
         if val = Rails.cache.read(key)
           attributes = val[:attributes]
           obj = @base.new
-          attributes.keys.each {|name| obj[name] = attributes[name]}
-          obj.cache_it.init_counters unless options[:skip_counters]
+          obj.send :attributes=, attributes, false
           obj.instance_variable_set("@new_record", false) if obj.id
+          obj.cache_it.init_counters unless options[:skip_counters]
         end
         return obj
       end
@@ -105,8 +104,6 @@ module ActiveRecord
     end
 
     class Config
-      attr_reader :indexes
-
       def initialize(model)
         @model = model
         @indexes ||= [[@model.primary_key]]
@@ -122,6 +119,10 @@ module ActiveRecord
         @indexes.push index unless @indexes.include? index
         validate
         return nil
+      end
+
+      def indexes
+        @indexes
       end
 
       def counters(*counters)
@@ -158,21 +159,21 @@ module ActiveRecord
 
   class Base
     def self.cache_it(*index)
-      raise ArgumentError, "use block or args" if index.present? and block_given?
-      if index.present? or block_given?
-        config = CacheIt::Config.new(self)
-        if index.present?
-          config.index *index
-        elsif block_given?
-          yield config
+      self.class_exec do
+        cattr_accessor :cache_it
+        def cache_it
+          @cache_it ||= CacheIt::InstanceDelegate.new self
         end
-        @@cache_it = CacheIt::ClassDelegate.new self, config
       end
-      @@cache_it or raise "cache_it not yet configured"
-    end
-
-    def cache_it
-      @cache_it ||= CacheIt::InstanceDelegate.new self
+      raise ArgumentError, "use block or args" if index.present? and block_given?
+      self.cache_it ||= CacheIt::ClassDelegate.new self, (config = CacheIt::Config.new self)
+      if config and index.present?
+        config.index *index
+      end
+      if config and block_given?
+        yield config
+      end
+      return self.cache_it
     end
   end
 end
