@@ -1,20 +1,23 @@
-ModelCache
-==========
+cache_it
+========
 
-Cache for ActiveRecord objects.  Cache-money was not yet ported to Rails 3 so I rolled my own.
+Cache for ActiveRecord objects, backed by ActiveSupport::CacheStore of your choice.  Cache-money was 
+not yet ported to Rails 3 so I rolled my own.
 
 
 Example
 =======
 
 class User < ActiveRecord::Base
-  model_cache :email
-  model_cache :first, :last
+  cache_it do |c|
+    c.index :first, :last
+    c.index :email
+  end
 end
 
-user = User.find_from_model_cache :first => "Joe", :last => "Schmoe"
-user = User.find_from_model_cache :email => "joe@example.com"
-user.age = 40
-user.write_cache
+user = User.cache_it_find :first => "Joe", :last => "Schmoe"
+user = User.cache_it_find :email => "joe@example.com"
+user.age = 30
+user.cache_it_write
 
 Copyright (c) 2011 Rodrigo Vanegas, released under the MIT license

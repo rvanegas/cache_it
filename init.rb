@@ -1,2 +1,2 @@
-require 'model_cache'
+require 'cache_it'
 
