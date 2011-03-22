@@ -1,58 +1,61 @@
 module ActiveRecord
   module CacheIt
     def self.included(base)
+      base.send :include, InstanceMethods
       base.extend(ClassMethods)
     end
 
-    def cache_it_write
-      expires_in = self.class.cache_it_config.expires_in
-      cache_it_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
-      cache_it_stale_keys.each {|key| Rails.cache.delete(key)}
-      cache_it_init_counters
-    end
-
-    def cache_it_increment(counter, amount = 1)
-      counter = counter.to_s
-      unless self.class.cache_it_config.counters.include? counter
-        raise ArgumentError, "#{counter} is not a counter"
+    module InstanceMethods
+      def cache_it_write
+        expires_in = self.class.cache_it_config.expires_in
+        cache_it_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
+        cache_it_stale_keys.each {|key| Rails.cache.delete(key)}
+        cache_it_init_counters
       end
-      primary_key = self.class.primary_key
-      if key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
-        self[counter] = Rails.cache.increment(key, amount, :raw => true)
-      end
-    end
 
-    def cache_it_delete
-      cache_it_keys.each do |key|
-        Rails.cache.delete(key)
+      def cache_it_increment(counter, amount = 1)
+        counter = counter.to_s
+        unless self.class.cache_it_config.counters.include? counter
+          raise ArgumentError, "#{counter} is not a counter"
+        end
+        primary_key = self.class.primary_key
+        if key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
+          self[counter] = Rails.cache.increment(key, amount, :raw => true)
+        end
       end
-    end
 
-    def cache_it_init_counters
-      primary_key = self.class.primary_key
-      self.class.cache_it_config.counters.map do |counter|
-        counter_key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
-        self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
+      def cache_it_delete
+        cache_it_keys.each do |key|
+          Rails.cache.delete(key)
+        end
       end
-    end
 
-    private
-    def attributes_before_changes
-      result = Hash.new
-      attributes.each do |k,v| 
-        result[k] = changes.include?(k) ? changes[k].first : v
+      def cache_it_init_counters
+        primary_key = self.class.primary_key
+        self.class.cache_it_config.counters.map do |counter|
+          counter_key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
+          self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
+        end
       end
-      return result
-    end
 
-    def cache_it_keys(attrs = attributes)
-      self.class.cache_it_config.indexes.map do |index|
-        self.class.cache_it_key attrs.select {|attr| index.include? attr}
+      private
+      def attributes_before_changes
+        result = Hash.new
+        attributes.each do |k,v| 
+          result[k] = changes.include?(k) ? changes[k].first : v
+        end
+        return result
       end
-    end
 
-    def cache_it_stale_keys
-      cache_it_keys(attributes_before_changes) - cache_it_keys(attributes)
+      def cache_it_keys(attrs = attributes)
+        self.class.cache_it_config.indexes.map do |index|
+          self.class.cache_it_key attrs.select {|attr| index.include? attr}
+        end
+      end
+
+      def cache_it_stale_keys
+        cache_it_keys(attributes_before_changes) - cache_it_keys(attributes)
+      end
     end
 
     module ClassMethods
