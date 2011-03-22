@@ -1,4 +1,19 @@
 module ActiveRecord
+  class Base
+    def self.cache_it(*index)
+      raise ArgumentError, "use block or args" if index.present? and block_given?
+      config = CacheIt::Config.new self
+      config.index *index if config and index.present?
+      yield config if config and block_given?
+      self.class_exec do
+        def self.cache_it; @@cache_it; end
+        def cache_it; @cache_it ||= CacheIt::InstanceDelegate.new self; end
+      end
+      delegate = CacheIt::ClassDelegate.new self, config
+      self.class_variable_set "@@cache_it", delegate
+    end
+  end
+
   module CacheIt
     class InstanceDelegate
       def initialize(base)
@@ -154,26 +169,6 @@ module ActiveRecord
           raise "cannot use column for both index and counter" 
         end
       end
-    end
-  end
-
-  class Base
-    def self.cache_it(*index)
-      self.class_exec do
-        cattr_accessor :cache_it
-        def cache_it
-          @cache_it ||= CacheIt::InstanceDelegate.new self
-        end
-      end
-      raise ArgumentError, "use block or args" if index.present? and block_given?
-      self.cache_it ||= CacheIt::ClassDelegate.new self, (config = CacheIt::Config.new self)
-      if config and index.present?
-        config.index *index
-      end
-      if config and block_given?
-        yield config
-      end
-      return self.cache_it
     end
   end
 end

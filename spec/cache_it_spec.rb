@@ -222,5 +222,10 @@ describe ActiveRecord::CacheIt do
       @users_class2.set_table_name "users"
       @users_class2.cache_it.config.should_not== @users_class.cache_it.config
     end
+
+    it "cannot config twice" do
+      expect {@users_class.cache_it :name}.to_not raise_error
+      expect {@users_class.cache_it :code}.to raise_error
+    end
   end
 end
