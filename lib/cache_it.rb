@@ -1,44 +1,38 @@
 module ActiveRecord
-  module ModelCache
+  module CacheIt
     def self.included(base)
       base.extend(ClassMethods)
     end
 
-    def mcache_keys(attrs = attributes)
-      self.class.mcache_config.indexes.map do |index|
-        self.class.mcache_key attrs.select {|attr| index.include? attr}
-      end
+    def cache_it_write
+      expires_in = self.class.cache_it_config.expires_in
+      cache_it_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
+      cache_it_stale_keys.each {|key| Rails.cache.delete(key)}
+      cache_it_init_counters
     end
 
-    def mcache_write
-      expires_in = self.class.mcache_config.expires_in
-      mcache_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
-      mcache_stale_keys.each {|key| Rails.cache.delete(key)}
-      mcache_init_counters
-    end
-
-    def mcache_init_counters
-      primary_key = self.class.primary_key
-      self.class.mcache_config.counters.map do |counter|
-        counter_key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
-        self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
-      end
-    end
-
-    def mcache_increment(counter, amount = 1)
+    def cache_it_increment(counter, amount = 1)
       counter = counter.to_s
-      unless self.class.mcache_config.counters.include? counter
+      unless self.class.cache_it_config.counters.include? counter
         raise ArgumentError, "#{counter} is not a counter"
       end
       primary_key = self.class.primary_key
-      if key = self.class.mcache_key({primary_key => self[primary_key]}, :counter => counter)
+      if key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
         self[counter] = Rails.cache.increment(key, amount, :raw => true)
       end
     end
 
-    def mcache_delete
-      mcache_keys.each do |key|
+    def cache_it_delete
+      cache_it_keys.each do |key|
         Rails.cache.delete(key)
+      end
+    end
+
+    def cache_it_init_counters
+      primary_key = self.class.primary_key
+      self.class.cache_it_config.counters.map do |counter|
+        counter_key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
+        self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
       end
     end
 
@@ -51,54 +45,60 @@ module ActiveRecord
       return result
     end
 
-    def mcache_stale_keys
-      mcache_keys(attributes_before_changes) - mcache_keys(attributes)
+    def cache_it_keys(attrs = attributes)
+      self.class.cache_it_config.indexes.map do |index|
+        self.class.cache_it_key attrs.select {|attr| index.include? attr}
+      end
+    end
+
+    def cache_it_stale_keys
+      cache_it_keys(attributes_before_changes) - cache_it_keys(attributes)
     end
 
     module ClassMethods
       def self.extended(base)
-        attr_reader :mcache_config
-        base.after_save :mcache_write
-        base.after_destroy :mcache_delete
+        attr_reader :cache_it_config
+        base.after_save :cache_it_write
+        base.after_destroy :cache_it_delete
       end
 
-      def mcache_key(attrs, options = {})
+      def cache_it_key(attrs, options = {})
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
-        raise ArgumentError, "index not available" unless mcache_config.indexes.include? index
+        raise ArgumentError, "index not available" unless cache_it_config.indexes.include? index
         if options[:counter]
-          raise ArgumentError, "not a counter" unless mcache_config.counters.include? options[:counter]
+          raise ArgumentError, "not a counter" unless cache_it_config.counters.include? options[:counter]
         end
-        key = ["ModelCache.v1", self.name]
+        key = ["CacheIt.v1", self.name]
         key.push options[:counter] if options[:counter]
         key.push index.map{|name| [name, attrs[name]]}.to_json
         return key.join(":")
       end
 
-      def mcache_find(attrs, options = {})
-        unless obj = mcache_read(attrs, options)
+      def cache_it_find(attrs, options = {})
+        unless obj = cache_it_read(attrs, options)
           obj = where(attrs).first
-          obj.mcache_write if obj
+          obj.cache_it_write if obj
         end
         return obj
       end
 
-      def mcache_read(attrs, options = {})
-        key = mcache_key(attrs)
+      def cache_it_read(attrs, options = {})
+        key = cache_it_key(attrs)
         obj = nil
         if val = Rails.cache.read(key)
           attributes = val[:attributes]
           obj = new
           attributes.keys.each {|name| obj[name] = attributes[name]}
-          obj.mcache_init_counters unless options[:skip_counters]
+          obj.cache_it_init_counters unless options[:skip_counters]
           obj.instance_variable_set("@new_record", false) if obj.id
         end
         return obj
       end
 
       private
-      def mcache_init(config)
-        @mcache_config = config
+      def cache_it_init(config)
+        @cache_it_config = config
       end
     end
 
@@ -155,13 +155,13 @@ module ActiveRecord
   end
 
   class Base
-    def self.model_cache(*index)
-      include ModelCache
-      config = ModelCache::Config.new(self)
+    def self.cache_it(*index)
+      include CacheIt
+      config = CacheIt::Config.new(self)
       raise ArgumentError, "use block or args" if index.present? and block_given?
       config.index *index if index.present?
       yield config if block_given?
-      mcache_init config
+      cache_it_init config
     end
   end
 end

@@ -4,7 +4,7 @@ Debugger.start
 
 require 'sqlite3'
 require 'active_record'
-require File.expand_path(File.dirname(__FILE__) + '/../lib/model_cache.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../lib/cache_it.rb')
 
 
 class MockCache
@@ -94,14 +94,14 @@ class Rails
 end
 
 class User < ActiveRecord::Base
-  model_cache do |c|
+  cache_it do |c|
     c.index :code
     c.index :name
     c.counters :points
   end
 end
 
-describe ActiveRecord::ModelCache do
+describe ActiveRecord::CacheIt do
   context "basics with User" do
     before do
       User.delete_all
@@ -110,20 +110,20 @@ describe ActiveRecord::ModelCache do
     end
 
     it "reads" do
-      User.mcache_read(:name => "joe").should== @u
+      User.cache_it_read(:name => "joe").should== @u
     end
 
     it "writes" do
       @u.name = "jane"
-      @u.mcache_write
-      User.mcache_read(:name => "jane").should== @u
+      @u.cache_it_write
+      User.cache_it_read(:name => "jane").should== @u
       User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "joe"
       @u.save!
       User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "jane"
     end
 
     it "increments" do
-      @u.mcache_increment(:points)
+      @u.cache_it_increment(:points)
       @u.points.should== 1
       User.find_by_sql("select * from users where name = 'joe'").first.points.should== 0
       @u.save!
@@ -131,35 +131,35 @@ describe ActiveRecord::ModelCache do
     end
 
     it "deletes stale keys" do
-      User.mcache_read(:code => "x").should== @u
+      User.cache_it_read(:code => "x").should== @u
       @u.code = "y"
       @u.save!
-      User.mcache_read(:code => "x").should== nil
+      User.cache_it_read(:code => "x").should== nil
     end
 
     it "syncs counters" do
-      @u.mcache_increment(:points)
-      @u2 = User.mcache_read(:name => "joe")
+      @u.cache_it_increment(:points)
+      @u2 = User.cache_it_read(:name => "joe")
       @u2.points.should== 1
-      @u2.mcache_increment(:points)
-      @u3 = User.mcache_read({:name => "joe"}, :skip_counters => true)
+      @u2.cache_it_increment(:points)
+      @u3 = User.cache_it_read({:name => "joe"}, :skip_counters => true)
       @u3.points.should== 0
-      @u4 = User.mcache_read(:name => "joe")
+      @u4 = User.cache_it_read(:name => "joe")
       @u4.points.should== 2
     end
 
     it "nil for read of unknown keys" do
-      User.mcache_read(:name => "dave").should== nil
+      User.cache_it_read(:name => "dave").should== nil
     end
 
     it "flags set right" do
-      @u2 = User.mcache_read(:name => "joe")
+      @u2 = User.cache_it_read(:name => "joe")
       @u2.new_record?.should== false
       @u2.persisted?.should== true
     end
 
     it "doesn't accept unknown index" do
-      expect { User.mcache_read(:points => 10) }.to raise_error(/index not available/)
+      expect { User.cache_it_read(:points => 10) }.to raise_error(/index not available/)
     end
   end
 
@@ -171,7 +171,7 @@ describe ActiveRecord::ModelCache do
     
     it "can't use same column for both index and counter" do
       expect do
-        @users_class.model_cache do |c|
+        @users_class.cache_it do |c|
           c.index :name, :points
           c.counters :points
         end
@@ -180,31 +180,31 @@ describe ActiveRecord::ModelCache do
 
     it "can use arg" do
       expect do
-        @users_class.model_cache :code
+        @users_class.cache_it :code
       end.to_not raise_error
     end
 
     it "can't use arg and block" do
       expect do
-        @users_class.model_cache(:code) {|c| c.index :name}
+        @users_class.cache_it(:code) {|c| c.index :name}
       end.to raise_error(/block or args/)
     end
 
     it "accepts constant or proc for expires" do
       expect do
-        @users_class.model_cache {|c| c.expires_in 3}
+        @users_class.cache_it {|c| c.expires_in 3}
       end.to_not raise_error
       expect do
-        @users_class.model_cache {|c| c.expires_in { 3 }}
+        @users_class.cache_it {|c| c.expires_in { 3 }}
       end.to_not raise_error
     end
 
     it "counter must be integer column" do
       expect do
-        @users_class.model_cache {|c| c.counters :name}
+        @users_class.cache_it {|c| c.counters :name}
       end.to raise_error(/must be column names for integer/)
       expect do
-        @users_class.model_cache {|c| c.counters :not_a_column}
+        @users_class.cache_it {|c| c.counters :not_a_column}
       end.to raise_error(/must be column names for integer/)
     end
   end
