@@ -20,7 +20,7 @@ class MockCache
     @hash[key]
   end
 
-  def fetch(key, options)
+  def fetch(key, options = {})
     if @hash.has_key?(key)
       @hash[key]
     elsif block_given?
@@ -110,20 +110,20 @@ describe ActiveRecord::CacheIt do
     end
 
     it "reads" do
-      User.cache_it_read(:name => "joe").should== @u
+      User.cache_it.read(:name => "joe").should== @u
     end
 
     it "writes" do
       @u.name = "jane"
-      @u.cache_it_write
-      User.cache_it_read(:name => "jane").should== @u
+      @u.cache_it.write
+      User.cache_it.read(:name => "jane").should== @u
       User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "joe"
       @u.save!
       User.find_by_sql("select * from users where id = #{@u.id}").first.name.should== "jane"
     end
 
     it "increments" do
-      @u.cache_it_increment(:points)
+      @u.cache_it.increment(:points)
       @u.points.should== 1
       User.find_by_sql("select * from users where name = 'joe'").first.points.should== 0
       @u.save!
@@ -131,35 +131,35 @@ describe ActiveRecord::CacheIt do
     end
 
     it "deletes stale keys" do
-      User.cache_it_read(:code => "x").should== @u
+      User.cache_it.read(:code => "x").should== @u
       @u.code = "y"
       @u.save!
-      User.cache_it_read(:code => "x").should== nil
+      User.cache_it.read(:code => "x").should== nil
     end
 
     it "syncs counters" do
-      @u.cache_it_increment(:points)
-      @u2 = User.cache_it_read(:name => "joe")
+      @u.cache_it.increment(:points)
+      @u2 = User.cache_it.read(:name => "joe")
       @u2.points.should== 1
-      @u2.cache_it_increment(:points)
-      @u3 = User.cache_it_read({:name => "joe"}, :skip_counters => true)
+      @u2.cache_it.increment(:points)
+      @u3 = User.cache_it.read({:name => "joe"}, :skip_counters => true)
       @u3.points.should== 0
-      @u4 = User.cache_it_read(:name => "joe")
+      @u4 = User.cache_it.read(:name => "joe")
       @u4.points.should== 2
     end
 
     it "nil for read of unknown keys" do
-      User.cache_it_read(:name => "dave").should== nil
+      User.cache_it.read(:name => "dave").should== nil
     end
 
     it "flags set right" do
-      @u2 = User.cache_it_read(:name => "joe")
+      @u2 = User.cache_it.read(:name => "joe")
       @u2.new_record?.should== false
       @u2.persisted?.should== true
     end
 
     it "doesn't accept unknown index" do
-      expect { User.cache_it_read(:points => 10) }.to raise_error(/index not available/)
+      expect { User.cache_it.read(:points => 10) }.to raise_error(/index not available/)
     end
   end
 

@@ -1,107 +1,106 @@
 module ActiveRecord
   module CacheIt
-    def self.included(base)
-      base.send :include, InstanceMethods
-      base.extend(ClassMethods)
-    end
-
-    module InstanceMethods
-      def cache_it_write
-        expires_in = self.class.cache_it_config.expires_in
-        cache_it_keys.each {|key| Rails.cache.write(key, {:attributes => attributes}, :expires_in => expires_in)}
-        cache_it_stale_keys.each {|key| Rails.cache.delete(key)}
-        cache_it_init_counters
+    class InstanceDelegate
+      def initialize(base)
+        @base = base
       end
 
-      def cache_it_increment(counter, amount = 1)
+      def write
+        expires_in = @base.class.cache_it.config.expires_in
+        keys.each {|key| Rails.cache.write(key, {:attributes => @base.attributes}, :expires_in => expires_in)}
+        stale_keys.each {|key| Rails.cache.delete(key)}
+        init_counters
+      end
+
+      def increment(counter, amount = 1)
         counter = counter.to_s
-        unless self.class.cache_it_config.counters.include? counter
+        unless @base.class.cache_it.config.counters.include? counter
           raise ArgumentError, "#{counter} is not a counter"
         end
-        primary_key = self.class.primary_key
-        if key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
-          self[counter] = Rails.cache.increment(key, amount, :raw => true)
+        primary_key = @base.class.primary_key
+        if key = @base.class.cache_it.key({primary_key => @base[primary_key]}, :counter => counter)
+          @base[counter] = Rails.cache.increment(key, amount, :raw => true)
         end
       end
 
-      def cache_it_delete
-        cache_it_keys.each do |key|
+      def delete
+        keys.each do |key|
           Rails.cache.delete(key)
         end
       end
 
-      def cache_it_init_counters
-        primary_key = self.class.primary_key
-        self.class.cache_it_config.counters.map do |counter|
-          counter_key = self.class.cache_it_key({primary_key => self[primary_key]}, :counter => counter)
-          self[counter] = Rails.cache.fetch(counter_key, :raw => true) { self[counter] }
+      def init_counters
+        primary_key = @base.class.primary_key
+        @base.class.cache_it.config.counters.map do |counter|
+          counter_key = @base.class.cache_it.key({primary_key => @base[primary_key]}, :counter => counter)
+          @base[counter] = Rails.cache.fetch(counter_key, :raw => true) { @base[counter] }
         end
       end
 
       private
       def attributes_before_changes
         result = Hash.new
-        attributes.each do |k,v| 
-          result[k] = changes.include?(k) ? changes[k].first : v
+        @base.attributes.each do |k,v| 
+          result[k] = @base.changes.include?(k) ? @base.changes[k].first : v
         end
         return result
       end
 
-      def cache_it_keys(attrs = attributes)
-        self.class.cache_it_config.indexes.map do |index|
-          self.class.cache_it_key attrs.select {|attr| index.include? attr}
+      def keys(attrs = @base.attributes)
+        @base.class.cache_it.config.indexes.map do |index|
+          @base.class.cache_it.key attrs.select {|attr| index.include? attr}
         end
       end
 
-      def cache_it_stale_keys
-        cache_it_keys(attributes_before_changes) - cache_it_keys(attributes)
+      def stale_keys
+        keys(attributes_before_changes) - keys(@base.attributes)
       end
     end
 
-    module ClassMethods
-      def self.extended(base)
-        attr_reader :cache_it_config
-        base.after_save :cache_it_write
-        base.after_destroy :cache_it_delete
+    class ClassDelegate
+      def initialize(base, config)
+        @base = base
+        @config = config
+        @base.after_save Proc.new { cache_it.write }
+        @base.after_destroy Proc.new { cache_it.delete }
       end
 
-      def cache_it_key(attrs, options = {})
+      def key(attrs, options = {})
         attrs = attrs.stringify_keys
         index = attrs.keys.sort
-        raise ArgumentError, "index not available" unless cache_it_config.indexes.include? index
+        raise ArgumentError, "index not available" unless @config.indexes.include? index
         if options[:counter]
-          raise ArgumentError, "not a counter" unless cache_it_config.counters.include? options[:counter]
+          raise ArgumentError, "not a counter" unless @config.counters.include? options[:counter]
         end
-        key = ["CacheIt.v1", self.name]
+        key = ["CacheIt.v1", @base.name]
         key.push options[:counter] if options[:counter]
         key.push index.map{|name| [name, attrs[name]]}.to_json
         return key.join(":")
       end
 
-      def cache_it_find(attrs, options = {})
-        unless obj = cache_it_read(attrs, options)
-          obj = where(attrs).first
-          obj.cache_it_write if obj
+      def find(attrs, options = {})
+        unless obj = read(attrs, options)
+          obj = @base.where(attrs).first
+          obj.cache_it.write if obj
         end
         return obj
       end
 
-      def cache_it_read(attrs, options = {})
-        key = cache_it_key(attrs)
+      def read(attrs, options = {})
+        key = key(attrs)
         obj = nil
         if val = Rails.cache.read(key)
           attributes = val[:attributes]
-          obj = new
+          obj = @base.new
           attributes.keys.each {|name| obj[name] = attributes[name]}
-          obj.cache_it_init_counters unless options[:skip_counters]
+          obj.cache_it.init_counters unless options[:skip_counters]
           obj.instance_variable_set("@new_record", false) if obj.id
         end
         return obj
       end
 
-      private
-      def cache_it_init(config)
-        @cache_it_config = config
+      def config
+        @config
       end
     end
 
@@ -159,12 +158,21 @@ module ActiveRecord
 
   class Base
     def self.cache_it(*index)
-      include CacheIt
-      config = CacheIt::Config.new(self)
       raise ArgumentError, "use block or args" if index.present? and block_given?
-      config.index *index if index.present?
-      yield config if block_given?
-      cache_it_init config
+      if index.present? or block_given?
+        config = CacheIt::Config.new(self)
+        if index.present?
+          config.index *index
+        elsif block_given?
+          yield config
+        end
+        @@cache_it = CacheIt::ClassDelegate.new self, config
+      end
+      @@cache_it or raise "cache_it not yet configured"
+    end
+
+    def cache_it
+      @cache_it ||= CacheIt::InstanceDelegate.new self
     end
   end
 end
