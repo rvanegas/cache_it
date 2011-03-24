@@ -1,16 +1,20 @@
 module ActiveRecord
   class Base
     def self.cache_it(*index)
-      raise ArgumentError, "use block or args" if index.present? and block_given?
-      config = CacheIt::Config.new self
-      config.index *index if config and index.present?
-      yield config if config and block_given?
-      self.class_exec do
-        def self.cache_it; @@cache_it; end
-        def cache_it; @cache_it ||= CacheIt::InstanceDelegate.new self; end
+      if self.class_variable_defined? :@@cache_it
+        raise ArgumentError, "cannot reconfigure" if index.present? or block_given?
+      else
+        raise ArgumentError, "use block or args" if index.present? and block_given?
+        config = CacheIt::Config.new self
+        config.index *index if config and index.present?
+        yield config if config and block_given?
+        self.class_exec do
+          def cache_it; @cache_it ||= CacheIt::InstanceDelegate.new self; end
+        end
+        delegate = CacheIt::ClassDelegate.new self, config
+        self.class_variable_set "@@cache_it", delegate
       end
-      delegate = CacheIt::ClassDelegate.new self, config
-      self.class_variable_set "@@cache_it", delegate
+      self.class_variable_get "@@cache_it"
     end
   end
 
