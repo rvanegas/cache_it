@@ -1,3 +1,4 @@
+
 require 'ruby-debug'
 Debugger.start
 
@@ -99,7 +100,7 @@ class User < ActiveRecord::Base
   end
 end
 
-describe ActiveRecord::CacheIt do
+describe CacheIt do
   context "User" do
     before do
       User.delete_all
