@@ -1,6 +1,24 @@
 
 module ActiveRecord
   class Base
+    #
+    # First time called, configures \cache_it for this ActiveRecord model.
+    # Subsequent calls returns a delegate to access class methods.
+    #
+    # Examples:
+    # 
+    #   class Foo < ActiveRecord::Base
+    #     cache_it :first, :last
+    #   end
+    # 
+    #   class Foo < ActiveRecord::Base
+    #     cache_it do |c|
+    #       c.index :first, :last
+    #       c.index :email
+    #       c.counters :points
+    #     end
+    #   end
+    #
     def self.cache_it(*index)
       if self.class_variable_defined? :@@cache_it
         raise ArgumentError, "cannot reconfigure" if index.present? or block_given?
@@ -10,7 +28,10 @@ module ActiveRecord
         config.index *index if config and index.present?
         yield config if config and block_given?
         self.class_exec do
-          def cache_it; @cache_it ||= CacheIt::InstanceDelegate.new self; end
+          # Returns delegate to access instance methods
+          def cache_it
+            @cache_it ||= CacheIt::InstanceDelegate.new self
+          end
         end
         delegate = CacheIt::ClassDelegate.new self, config
         self.class_variable_set "@@cache_it", delegate
@@ -20,6 +41,33 @@ module ActiveRecord
   end
 end
 
+# 
+# Cache for ActiveRecord objects, backed by ActiveSupport::CacheStore of your choice.  
+# 
+# ==Usage
+#  
+#  # migration
+#  create_table :users do |t|
+#     t.string :first
+#     t.string :last
+#     t.string :email
+#     t.integer :age
+#     t.integer :points
+#   end
+#
+#   class User < ActiveRecord::Base
+#     cache_it do |c|
+#       c.index :first, :last
+#       c.index :email
+#       c.counters :points
+#     end
+#   end
+# 
+#   user = User.cache_it.find(:first => "Joe", :last => "Schmoe")
+#   user = User.cache_it.find(:email => "joe@example.com")
+#   user.age = 30
+#   user.cache_it_write
+# 
 module CacheIt
   class InstanceDelegate
     def initialize(base)
