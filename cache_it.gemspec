@@ -6,11 +6,11 @@ Gem::Specification.new do |s|
   s.name        = "cache_it"
   s.version     = CacheIt::VERSION
   s.platform    = Gem::Platform::RUBY
-  s.authors     = ["TODO: Write your name"]
-  s.email       = ["TODO: Write your email address"]
+  s.authors     = ["Rodrigo Vanegas"]
+  s.email       = ["rvanegas@gmail.com"]
   s.homepage    = ""
-  s.summary     = %q{TODO: Write a gem summary}
-  s.description = %q{TODO: Write a gem description}
+  s.summary     = %q{ActiveRecord caching}
+  s.description = %q{Integrates ActiveRecord with cache stores provided by Rails.cache, incluing memcached}
 
   s.rubyforge_project = "cache_it"
 
