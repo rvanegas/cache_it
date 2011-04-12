@@ -8,16 +8,53 @@ not yet ported to Rails 3 so I rolled my own.
 Example
 =======
 
+create table users (
+  `id` int(11) not null increment,
+  `first` varchar(255),
+  `last` varchar(255),
+  `email` varchar(255),
+  `age` int(11),
+  `points` int(11),
+  primary key (`id`),
+  unique key `index_users_on_email` (`email`),
+  unique key `index_users_on_last_first` (`last`, `first`)
+);
+
 class User < ActiveRecord::Base
   cache_it do |c|
-    c.index :first, :last
+    c.index :last, :first
     c.index :email
+    c.counters :points
   end
 end
 
-user = User.cache_it_find :first => "Joe", :last => "Schmoe"
-user = User.cache_it_find :email => "joe@example.com"
+user = User.cache_it.find :first => "Joe", :last => "Schmoe"
+user.email = "joe@example.com"
+user.points = 5
+user.age = 29
+user.save
 user.age = 30
-user.cache_it_write
+user.cache_it.write
+
+User.cache_it.read(:email => "joe@example.com").first.age
+=> 30
+User.where(:email => "joe@example.com").first.age
+=> 29
+user.save
+=> true
+User.where(:email => "joe@example.com").first.age
+=> 30
+
+user.cache_it.increment :points
+=> 6
+User.cache_it.read(:first => "Joe", :last => "Schmoe").points
+=> 6
+User.where(:first => "Joe", :last => "Schmoe").first.points
+=> 5
+user.save
+=> true
+User.where(:first => "Joe", :last => "Schmoe").first.points
+=> 6
+
 
 Copyright (c) 2011 Rodrigo Vanegas, released under the MIT license
