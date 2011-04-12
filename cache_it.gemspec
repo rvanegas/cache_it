@@ -13,6 +13,10 @@ Gem::Specification.new do |s|
   s.description = %q{Integrates ActiveRecord with cache stores provided by Rails.cache, incluing memcached}
 
   s.rubyforge_project = "cache_it"
+  s.add_dependency 'activerecord'
+  s.add_development_dependency 'rspec'
+  s.add_development_dependency 'ruby-debug19'
+  s.add_development_dependency 'sqlite3'
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")

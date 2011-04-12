@@ -226,7 +226,7 @@ describe CacheIt do
 
     it "cannot config twice" do
       expect {@users_class.cache_it :name}.to_not raise_error
-      expect {@users_class.cache_it :code}.to raise_error
+      expect {@users_class.cache_it :name}.to raise_error
     end
   end
 end
