@@ -1,8 +1,7 @@
 cache_it
 ========
 
-Cache for ActiveRecord objects, backed by ActiveSupport::CacheStore of your choice.  Cache-money was 
-not yet ported to Rails 3 so I rolled my own.
+Cache for ActiveRecord objects, backed by ActiveSupport::CacheStore of your choice.  
 
 
 Example
