@@ -80,6 +80,7 @@ silence_stream(STDOUT) do
     create_table :users do |t|
       t.string :code
       t.string :name
+      t.boolean :flag, :default => false
       t.integer :points, :default => 0
     end
   end
@@ -164,6 +165,26 @@ describe CacheIt do
 
     it "doesn't accept unknown index" do
       expect { User.cache_it.read(:points => 10) }.to raise_error(/index not available/)
+    end
+
+    xit "saves boolean correctly on repetition" do
+      User.all[0].flag.should == false
+      u = User.cache_it.find :name => "joe"
+      u.flag = true
+      u.save
+      User.all[0].flag.should == true
+      u = User.cache_it.find :name => "joe"
+      u.flag = false
+      u.save
+      User.all[0].flag.should == false
+      u = User.cache_it.find :name => "joe"
+      u.flag = true
+      u.save
+      User.all[0].flag.should == true
+      u = User.cache_it.find :name => "joe"
+      u.flag = false
+      u.save
+      User.all[0].flag.should == false
     end
   end
 
