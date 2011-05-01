@@ -162,6 +162,7 @@ module CacheIt
         obj = @base.new
         obj.send :attributes=, attributes, false
         obj.instance_variable_set("@new_record", false) if obj.id
+        obj.instance_variable_set("@changed_attributes", {}) if obj.id
         obj.cache_it.init_counters unless options[:skip_counters]
       end
       return obj

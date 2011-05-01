@@ -167,7 +167,7 @@ describe CacheIt do
       expect { User.cache_it.read(:points => 10) }.to raise_error(/index not available/)
     end
 
-    xit "saves boolean correctly on repetition" do
+    it "saves boolean correctly on repetition" do
       User.all[0].flag.should == false
       u = User.cache_it.find :name => "joe"
       u.flag = true
